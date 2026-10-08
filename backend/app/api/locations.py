@@ -58,3 +58,28 @@ def analyze(
         "source": source,
         "status": "location saved"
     }
+
+@router.get("/history/{user_id}")
+def location_history(
+    user_id: int,
+    db: Session = Depends(get_db)
+):
+    locations = (
+        db.query(LocationEvent)
+        .filter(LocationEvent.user_id == user_id)
+        .order_by(LocationEvent.timestamp.desc())
+        .all()
+    )
+
+    return [
+        {
+            "id": location.id,
+            "latitude": location.latitude,
+            "longitude": location.longitude,
+            "accuracy_meters": location.accuracy,
+            "confidence": location.confidence,
+            "source": location.source,
+            "timestamp": location.timestamp
+        }
+        for location in locations
+    ]
