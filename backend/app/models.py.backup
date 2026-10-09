@@ -35,33 +35,3 @@ class LocationEvent(Base):
         DateTime,
         default=datetime.utcnow
     )
-
-class FraudAssessment(Base):
-    __tablename__ = "fraud_assessments"
-
-    id = Column(Integer, primary_key=True, index=True)
-
-    user_id = Column(Integer, nullable=False)
-
-    previous_location_id = Column(Integer, nullable=False)
-
-    current_location_id = Column(Integer, nullable=False)
-
-    risk_score = Column(Integer, nullable=False)
-
-    risk_level = Column(String, nullable=False)
-
-    alert = Column(Integer, nullable=False)
-
-    reasons = Column(String, nullable=False)
-
-    recommendation = Column(String, nullable=False)
-
-    recommended_action = Column(String, nullable=False)
-
-    assessment_type = Column(String, nullable=False)
-
-    timestamp = Column(
-        DateTime,
-        default=datetime.utcnow
-    )

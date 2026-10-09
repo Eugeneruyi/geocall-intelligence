@@ -1,14 +1,13 @@
-import json
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
-from app.models import LocationEvent, FraudAssessment
+from app.models import LocationEvent
 from app.services.geo_engine import analyze_location
 from app.services.risk_engine import analyze_movement
-from app.services.fraud_engine import analyze_fraud_risk
+
 
 router = APIRouter(
     prefix="/locations",
@@ -234,111 +233,4 @@ def location_risk_assessment(
         "location_accuracy_meters": current.accuracy,
         "movement_analysis": movement,
         "recommendation": recommendation
-    }
-
-@router.get("/fraud-risk/{user_id}")
-def fraud_risk_assessment(
-    user_id: int,
-    db: Session = Depends(get_db)
-):
-    """
-    Combine movement risk and location quality
-    into a preliminary fraud-risk assessment.
-    """
-
-    # Retrieve the two most recent location records.
-    locations = (
-        db.query(LocationEvent)
-        .filter(LocationEvent.user_id == user_id)
-        .order_by(LocationEvent.timestamp.desc())
-        .limit(2)
-        .all()
-    )
-
-    # We need two records to assess movement.
-    if len(locations) < 2:
-        return {
-            "user_id": user_id,
-            "risk_level": "UNKNOWN",
-            "status": "insufficient_data",
-            "reason": (
-                "At least two location records are "
-                "required for this assessment."
-            )
-        }
-
-    # The newest record is the current location.
-    current = locations[0]
-
-    # The second record is the previous location.
-    previous = locations[1]
-
-    # Calculate movement risk.
-    try:
-        movement = analyze_movement(
-            previous_latitude=previous.latitude,
-            previous_longitude=previous.longitude,
-            previous_timestamp=previous.timestamp,
-            current_latitude=current.latitude,
-            current_longitude=current.longitude,
-            current_timestamp=current.timestamp
-        )
-
-    except ValueError as error:
-        raise HTTPException(
-            status_code=422,
-            detail=str(error)
-        )
-
-    # Combine movement risk with location quality.
-    try:
-        assessment = analyze_fraud_risk(
-            movement_analysis=movement,
-            location_confidence=current.confidence,
-            accuracy_meters=current.accuracy
-        )
-
-    except ValueError as error:
-        raise HTTPException(
-            status_code=422,
-            detail=str(error)
-        )
-
-    # Create a database record for this assessment.
-    saved_assessment = FraudAssessment(
-        user_id=user_id,
-        previous_location_id=previous.id,
-        current_location_id=current.id,
-        risk_score=assessment["risk_score"],
-        risk_level=assessment["risk_level"],
-        alert=1 if assessment["alert"] else 0,
-        reasons=json.dumps(assessment["reasons"]),
-        recommendation=assessment["recommendation"],
-        recommended_action=assessment["recommended_action"],
-        assessment_type=assessment["assessment_type"]
-    )
-
-    # Add the record to the database transaction.
-    db.add(saved_assessment)
-
-    # Save the record in PostgreSQL.
-    try:
-        db.commit()
-        db.refresh(saved_assessment)
-    except Exception:
-        db.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail="Unable to save fraud assessment."
-        )
-    # Return the combined assessment.
-    return {
-        "user_id": user_id,
-        "status": "fraud_risk_assessment_complete",
-        "previous_location_id": previous.id,
-        "current_location_id": current.id,
-        "location_confidence": current.confidence,
-        "location_accuracy_meters": current.accuracy,
-        "movement_analysis": movement,
-        "fraud_assessment": assessment
     }

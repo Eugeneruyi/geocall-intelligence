@@ -1,11 +1,10 @@
-import json
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
-from app.models import LocationEvent, FraudAssessment
+from app.models import LocationEvent
 from app.services.geo_engine import analyze_location
 from app.services.risk_engine import analyze_movement
 from app.services.fraud_engine import analyze_fraud_risk
@@ -304,33 +303,6 @@ def fraud_risk_assessment(
             detail=str(error)
         )
 
-    # Create a database record for this assessment.
-    saved_assessment = FraudAssessment(
-        user_id=user_id,
-        previous_location_id=previous.id,
-        current_location_id=current.id,
-        risk_score=assessment["risk_score"],
-        risk_level=assessment["risk_level"],
-        alert=1 if assessment["alert"] else 0,
-        reasons=json.dumps(assessment["reasons"]),
-        recommendation=assessment["recommendation"],
-        recommended_action=assessment["recommended_action"],
-        assessment_type=assessment["assessment_type"]
-    )
-
-    # Add the record to the database transaction.
-    db.add(saved_assessment)
-
-    # Save the record in PostgreSQL.
-    try:
-        db.commit()
-        db.refresh(saved_assessment)
-    except Exception:
-        db.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail="Unable to save fraud assessment."
-        )
     # Return the combined assessment.
     return {
         "user_id": user_id,
