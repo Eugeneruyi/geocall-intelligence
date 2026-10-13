@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>GeoCall Intelligence | Security Dashboard</title>
+
+    <!-- Leaflet map styles -->
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    >
+
+    <!-- GeoCall dashboard styles -->
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+
+    <div class="app-container">
+
+        <!-- =====================================
+             LEFT NAVIGATION SIDEBAR
+        ====================================== -->
+        <aside class="sidebar">
+
+            <div class="brand">
+                <div class="brand-icon">G</div>
+
+                <div>
+                    <h2>GeoCall</h2>
+                    <p>INTELLIGENCE</p>
+                </div>
+            </div>
+
+            <div class="nav-label">MONITORING</div>
+
+            <nav>
+                <a href="#" class="nav-item active">
+                    <span>▦</span>
+                    Dashboard
+                </a>
+
+                <a href="#location-map-panel" class="nav-item">
+                    <span>◎</span>
+                    Geographic Intelligence
+                </a>
+
+                <a href="#alerts" class="nav-item">
+                    <span>⚠</span>
+                    Fraud Alerts
+                </a>
+
+                <a href="#assessments" class="nav-item">
+                    <span>◷</span>
+                    Assessment History
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="status-dot"></div>
+                <span>Security Engine</span>
+                <strong>ONLINE</strong>
+            </div>
+
+        </aside>
+
+
+        <!-- =====================================
+             MAIN DASHBOARD CONTENT
+        ====================================== -->
+        <main class="main-content">
+
+            <!-- TOP HEADER -->
+            <header class="topbar">
+
+                <div>
+                    <p class="breadcrumb">
+                        SECURITY OPERATIONS / OVERVIEW
+                    </p>
+
+                    <h1>Fraud Monitoring Dashboard</h1>
+
+                    <p class="subtitle">
+                        Monitor suspicious movement and location risk.
+                    </p>
+                </div>
+
+                <div class="topbar-actions">
+
+                    <div class="connection-status">
+                        <span class="status-dot"></span>
+                        <span id="connection-status">
+                            Connecting...
+                        </span>
+                    </div>
+
+                    <button
+                        id="refresh-button"
+                        class="refresh-button"
+                        type="button"
+                    >
+                        ↻ Refresh
+                    </button>
+
+                </div>
+
+            </header>
+
+
+            <!-- =====================================
+                 RISK OVERVIEW SUMMARY CARDS
+            ====================================== -->
+            <section class="summary-section">
+
+                <div class="section-heading">
+                    <div>
+                        <h2>Risk Overview</h2>
+                        <p>
+                            Summary of recorded fraud assessments
+                        </p>
+                    </div>
+
+                    <span class="live-label">● LIVE DATA</span>
+                </div>
+
+                <div class="stats-grid">
+
+                    <!-- Total assessments -->
+                    <article class="stat-card total-card">
+                        <div class="stat-top">
+                            <span>Total Assessments</span>
+                            <span class="stat-icon">▤</span>
+                        </div>
+
+                        <h3 id="total-assessments">—</h3>
+
+                        <p>Recorded assessments</p>
+                    </article>
+
+
+                    <!-- High risk -->
+                    <article class="stat-card high-card">
+                        <div class="stat-top">
+                            <span>High Risk</span>
+                            <span class="stat-icon">!</span>
+                        </div>
+
+                        <h3 id="high-risk">—</h3>
+
+                        <p>Requires close review</p>
+                    </article>
+
+
+                    <!-- Medium risk -->
+                    <article class="stat-card medium-card">
+                        <div class="stat-top">
+                            <span>Medium Risk</span>
+                            <span class="stat-icon">◈</span>
+                        </div>
+
+                        <h3 id="medium-risk">—</h3>
+
+                        <p>Needs further assessment</p>
+                    </article>
+
+
+                    <!-- Low risk -->
+                    <article class="stat-card low-card">
+                        <div class="stat-top">
+                            <span>Low Risk</span>
+                            <span class="stat-icon">✓</span>
+                        </div>
+
+                        <h3 id="low-risk">—</h3>
+
+                        <p>Lower rule-based risk</p>
+                    </article>
+
+
+                    <!-- Alerts -->
+                    <article class="stat-card alert-card">
+                        <div class="stat-top">
+                            <span>Alerts to Review</span>
+                            <span class="stat-icon">⚑</span>
+                        </div>
+
+                        <h3 id="alerts-count">—</h3>
+
+                        <p>Triggered assessments</p>
+                    </article>
+
+                </div>
+
+            </section>
+
+
+            <!-- =====================================
+                 GEOGRAPHIC INTELLIGENCE MAP
+            ====================================== -->
+            <section class="panel" id="location-map-panel">
+
+                <div class="panel-header">
+
+                    <div>
+                        <h2>Geographic Intelligence</h2>
+
+                        <p>
+                            Recorded locations and suspicious movement
+                        </p>
+                    </div>
+
+                    <span class="panel-count" id="map-status">
+                        Loading map...
+                    </span>
+
+                </div>
+
+
+                <!-- Interactive Leaflet map -->
+                <div
+                    id="geo-map"
+                    role="application"
+                    aria-label="Interactive map of recorded locations"
+                ></div>
+
+
+                <!-- Map legend -->
+                <div class="map-legend">
+
+                    <div class="legend-item">
+                        <span
+                            class="legend-dot location-dot"
+                        ></span>
+
+                        Recorded location
+                    </div>
+
+                    <div class="legend-item">
+                        <span
+                            class="legend-dot high-risk-dot"
+                        ></span>
+
+                        High-risk movement
+                    </div>
+
+                </div>
+
+
+                <!-- =====================================
+                     MOVEMENT ANALYSIS PANEL
+                ====================================== -->
+                <div class="movement-details">
+
+                    <h3>Movement Analysis</h3>
+
+                    <p class="movement-intro">
+                        Select a location marker to inspect its details.
+                    </p>
+
+
+                    <!-- Movement statistics -->
+                    <div class="movement-stats">
+
+                        <div class="movement-stat">
+                            <span>Distance</span>
+
+                            <strong id="movement-distance">—</strong>
+                        </div>
+
+                        <div class="movement-stat">
+                            <span>Elapsed Time</span>
+
+                            <strong id="movement-time">—</strong>
+                        </div>
+
+                        <div class="movement-stat">
+                            <span>Calculated Speed</span>
+
+                            <strong id="movement-speed">—</strong>
+                        </div>
+
+                        <div class="movement-stat">
+                            <span>Risk Level</span>
+
+                            <strong id="movement-risk">—</strong>
+                        </div>
+
+                    </div>
+
+
+                    <!-- Explanation of the risk assessment -->
+                    <div class="movement-reason">
+
+                        <strong>Assessment Explanation</strong>
+
+                        <p id="movement-reason">
+                            Movement analysis will appear here.
+                        </p>
+
+                    </div>
+
+                </div>
+
+            </section>
+
+
+            <!-- =====================================
+                 SECURITY ALERTS
+            ====================================== -->
+            <section class="panel" id="alerts">
+
+                <div class="panel-header">
+
+                    <div>
+                        <h2>Security Alerts</h2>
+
+                        <p>
+                            Assessments that may require investigation
+                        </p>
+                    </div>
+
+                    <span
+                        class="panel-count"
+                        id="alert-panel-count"
+                    >
+                        0 alerts
+                    </span>
+
+                </div>
+
+                <div
+                    id="alerts-container"
+                    class="alerts-container"
+                >
+                    <p class="loading-message">
+                        Loading security alerts...
+                    </p>
+                </div>
+
+            </section>
+
+
+            <!-- =====================================
+                 RECENT ASSESSMENTS TABLE
+            ====================================== -->
+            <section class="panel" id="assessments">
+
+                <div class="panel-header">
+
+                    <div>
+                        <h2>Recent Assessments</h2>
+
+                        <p>
+                            Latest recorded fraud-risk evaluations
+                        </p>
+                    </div>
+
+                    <span class="table-note">
+                        Latest 5 records
+                    </span>
+
+                </div>
+
+
+                <div class="table-wrapper">
+
+                    <table>
+
+                        <thead>
+                            <tr>
+                                <th>ASSESSMENT</th>
+                                <th>RISK SCORE</th>
+                                <th>RISK LEVEL</th>
+                                <th>MOVEMENT</th>
+                                <th>RECOMMENDED ACTION</th>
+                                <th>TIMESTAMP</th>
+                            </tr>
+                        </thead>
+
+                        <tbody id="assessments-table">
+
+                            <tr>
+                                <td
+                                    colspan="6"
+                                    class="loading-message"
+                                >
+                                    Loading assessments...
+                                </td>
+                            </tr>
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </section>
+
+
+            <!-- =====================================
+                 FOOTER
+            ====================================== -->
+            <footer class="footer">
+
+                <span>GeoCall Intelligence</span>
+
+                <span>
+                    Rule-based fraud monitoring prototype
+                </span>
+
+            </footer>
+
+        </main>
+
+    </div>
+
+
+    <!-- =====================================
+         JAVASCRIPT LIBRARIES
+    ====================================== -->
+
+    <!-- Leaflet map library must load first -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- GeoCall dashboard functionality -->
+    <script src="/static/script.js"></script>
+
+</body>
+</html>

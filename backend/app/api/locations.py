@@ -342,3 +342,117 @@ def fraud_risk_assessment(
         "movement_analysis": movement,
         "fraud_assessment": assessment
     }
+
+@router.get("/fraud-history/{user_id}")
+def fraud_assessment_history(
+    user_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Retrieve saved fraud assessments for a user.
+    """
+
+    records = (
+        db.query(FraudAssessment)
+        .filter(FraudAssessment.user_id == user_id)
+        .order_by(FraudAssessment.timestamp.desc())
+        .all()
+    )
+
+    assessments = []
+
+    for record in records:
+        assessments.append({
+            "id": record.id,
+            "previous_location_id": record.previous_location_id,
+            "current_location_id": record.current_location_id,
+            "risk_score": record.risk_score,
+            "risk_level": record.risk_level,
+            "alert": bool(record.alert),
+            "reasons": json.loads(record.reasons),
+            "recommendation": record.recommendation,
+            "recommended_action": record.recommended_action,
+            "assessment_type": record.assessment_type,
+            "timestamp": (
+                record.timestamp.isoformat()
+                if record.timestamp else None
+            )
+        })
+
+    return {
+        "user_id": user_id,
+        "total_assessments": len(assessments),
+        "assessments": assessments
+    }
+@router.get("/fraud-dashboard/{user_id}")
+def fraud_dashboard(
+    user_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Return a summary of fraud assessments for a user.
+    """
+
+    # Get all saved assessments for this user.
+    records = (
+        db.query(FraudAssessment)
+        .filter(FraudAssessment.user_id == user_id)
+        .order_by(FraudAssessment.timestamp.desc())
+        .all()
+    )
+
+    # Count assessments by risk level.
+    total_assessments = len(records)
+
+    high_risk = sum(
+        1 for record in records
+        if record.risk_level == "HIGH"
+    )
+
+    medium_risk = sum(
+        1 for record in records
+        if record.risk_level == "MEDIUM"
+    )
+
+    low_risk = sum(
+        1 for record in records
+        if record.risk_level == "LOW"
+    )
+
+    # Count assessments that triggered an alert.
+    alerts_requiring_review = sum(
+        1 for record in records
+        if bool(record.alert)
+    )
+
+    # Prepare the five most recent assessments.
+    recent_assessments = []
+
+    for record in records[:5]:
+        recent_assessments.append({
+            "id": record.id,
+            "risk_score": record.risk_score,
+            "risk_level": record.risk_level,
+            "alert": bool(record.alert),
+            "previous_location_id": record.previous_location_id,
+            "current_location_id": record.current_location_id,
+            "recommended_action": record.recommended_action,
+            "timestamp": (
+                record.timestamp.isoformat()
+                if record.timestamp else None
+            )
+        })
+
+    # Return the dashboard summary.
+    return {
+        "user_id": user_id,
+        "dashboard_status": "success",
+        "summary": {
+            "total_assessments": total_assessments,
+            "high_risk": high_risk,
+            "medium_risk": medium_risk,
+            "low_risk": low_risk,
+            "alerts_requiring_review": alerts_requiring_review
+        },
+        "recent_assessments": recent_assessments
+    }
