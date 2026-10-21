@@ -46,7 +46,7 @@ const movementTime = document.getElementById("movement-time");
 const movementSpeed = document.getElementById("movement-speed");
 const movementRisk = document.getElementById("movement-risk");
 const movementReason = document.getElementById("movement-reason");
-const movementIntro = document.getElementById("movement-intro");
+const movementIntro = document.querySelector(".movement-intro");
 
 
 // ==========================================
@@ -56,6 +56,12 @@ const movementIntro = document.getElementById("movement-intro");
 let geoMap = null;
 let locationLayer = null;
 let movementLine = null;
+let assessmentLine = null;
+
+// Keep references to markers and loaded assessments
+// so alerts and table rows can navigate the map.
+const locationMarkers = new Map();
+let dashboardAssessments = [];
 
 
 // ==========================================
@@ -543,6 +549,7 @@ function displayLocationHistory(history, riskData) {
 
     // Remove existing markers.
     locationLayer.clearLayers();
+    locationMarkers.clear();
 
     // Remove existing movement line.
     if (movementLine) {
@@ -626,6 +633,12 @@ function displayLocationHistory(history, riskData) {
         if (marker) {
 
             marker.addTo(locationLayer);
+
+            // Index each marker by its location ID.
+            locationMarkers.set(
+                String(location.id),
+                marker
+            );
 
             validCoordinates.push([
                 latitude,
@@ -855,6 +868,10 @@ async function loadDashboard() {
 
 
         // Update dashboard sections.
+        // Save the assessments for click handling.
+        dashboardAssessments =
+            data.recent_assessments;
+
         updateSummary(data.summary);
 
         updateAlerts(
@@ -960,7 +977,14 @@ function updateAlerts(assessments) {
     alertsContainer.innerHTML =
         alerts.map(assessment => `
 
-            <article class="alert-item">
+            <article
+                class="alert-item"
+                data-assessment-id="${escapeHTML(assessment.id)}"
+                tabindex="0"
+                role="button"
+                aria-label="View assessment ${escapeHTML(assessment.id)} on map"
+                style="cursor: pointer;"
+            >
 
                 <div class="alert-symbol">
                     !
@@ -1059,7 +1083,11 @@ function updateAssessmentsTable(assessments) {
 
             return `
 
-                <tr>
+                <tr
+                    data-assessment-id="${escapeHTML(assessment.id)}"
+                    tabindex="0"
+                    style="cursor: pointer;"
+                >
 
                     <td>
                         #
@@ -1175,6 +1203,178 @@ function showDashboardError() {
         </tr>
     `;
 }
+
+
+// ==========================================
+// NAVIGATE TO AN ASSESSMENT'S LOCATIONS
+// ==========================================
+
+
+function focusAssessment(assessmentId) {
+
+    const assessment = dashboardAssessments.find(
+        item => String(item.id) === String(assessmentId)
+    );
+
+    if (!assessment || !geoMap) {
+        return;
+    }
+
+    const previousId = String(assessment.previous_location_id);
+    const currentId = String(assessment.current_location_id);
+
+    const previousMarker = locationMarkers.get(previousId);
+    const currentMarker = locationMarkers.get(currentId);
+
+    console.log("Assessment selected:", assessment);
+    console.log("Previous marker found:", Boolean(previousMarker), previousId);
+    console.log("Current marker found:", Boolean(currentMarker), currentId);
+
+    const markers = [previousMarker, currentMarker].filter(Boolean);
+
+    if (markers.length === 0) {
+        setMapStatus(
+            `Assessment #${assessment.id} selected. ` +
+            "Its locations are not available on the map."
+        );
+        return;
+    }
+
+    // Remove the previous assessment highlight.
+    if (assessmentLine) {
+        geoMap.removeLayer(assessmentLine);
+        assessmentLine = null;
+    }
+
+    // Draw a separate red dashed line for this assessment.
+    if (previousMarker && currentMarker && previousId !== currentId) {
+
+        const previousPoint = previousMarker.getLatLng();
+        const currentPoint = currentMarker.getLatLng();
+
+        assessmentLine = L.polyline(
+            [previousPoint, currentPoint],
+            {
+                color: "#ff5d70",
+                weight: 6,
+                opacity: 1,
+                dashArray: "8, 8"
+            }
+        ).addTo(geoMap);
+
+        assessmentLine.bindPopup(`
+            <div class="map-popup-title">
+                Selected Fraud Assessment
+            </div>
+            <div class="map-popup-detail">
+                Assessment:
+                <strong>#${escapeHTML(assessment.id)}</strong>
+            </div>
+            <div class="map-popup-detail">
+                Movement:
+                <strong>${escapeHTML(previousId)} → ${escapeHTML(currentId)}</strong>
+            </div>
+            <div class="map-popup-detail">
+                Risk:
+                <strong>${escapeHTML(assessment.risk_level)}</strong>
+            </div>
+            <div class="map-popup-detail">
+                Risk score:
+                <strong>${escapeHTML(assessment.risk_score)}/100</strong>
+            </div>
+        `);
+    }
+
+    // Zoom to the selected locations.
+    const bounds = L.latLngBounds(
+        markers.map(marker => marker.getLatLng())
+    );
+
+    if (bounds.isValid()) {
+        geoMap.fitBounds(bounds, {
+            padding: [60, 60],
+            maxZoom: 8
+        });
+    }
+
+    // Open the current location popup.
+    if (currentMarker) {
+        currentMarker.openPopup();
+    } else if (previousMarker) {
+        previousMarker.openPopup();
+    }
+
+    setMapStatus(
+        `Viewing assessment #${assessment.id}: ` +
+        `locations ${previousId} → ${currentId}. ` +
+        `Risk: ${assessment.risk_level}. ` +
+        "Red dashed line shows this selected assessment."
+    );
+}
+
+
+// ==========================================
+// CONNECT ALERTS AND ASSESSMENT ROWS
+// ==========================================
+
+function handleAssessmentSelection(event) {
+
+    const item = event.target.closest(
+        "[data-assessment-id]"
+    );
+
+    if (!item) {
+        return;
+    }
+
+    focusAssessment(
+        item.dataset.assessmentId
+    );
+}
+
+alertsContainer.addEventListener(
+    "click",
+    handleAssessmentSelection
+);
+
+assessmentsTable.addEventListener(
+    "click",
+    handleAssessmentSelection
+);
+
+function handleAssessmentKeyboard(event) {
+
+    if (
+        event.key !== "Enter" &&
+        event.key !== " "
+    ) {
+        return;
+    }
+
+    const item = event.target.closest(
+        "[data-assessment-id]"
+    );
+
+    if (!item) {
+        return;
+    }
+
+    event.preventDefault();
+
+    focusAssessment(
+        item.dataset.assessmentId
+    );
+}
+
+alertsContainer.addEventListener(
+    "keydown",
+    handleAssessmentKeyboard
+);
+
+assessmentsTable.addEventListener(
+    "keydown",
+    handleAssessmentKeyboard
+);
 
 
 // ==========================================

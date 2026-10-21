@@ -62,6 +62,7 @@ let assessmentLine = null;
 // so alerts and table rows can navigate the map.
 const locationMarkers = new Map();
 let dashboardAssessments = [];
+let locationHistory = [];
 
 
 // ==========================================
@@ -760,7 +761,10 @@ async function loadMapData() {
         }
 
 
-        // Update movement information.
+        // Save history so assessment selections can use it.
+        locationHistory = history;
+
+        // Show the latest movement by default.
         updateMovementDetails(riskData);
 
 
@@ -1206,6 +1210,142 @@ function showDashboardError() {
 
 
 // ==========================================
+// SHOW THE SELECTED ASSESSMENT'S MOVEMENT
+// ==========================================
+
+function updateSelectedAssessmentMovement(assessment) {
+
+    const previousLocation = locationHistory.find(
+        location =>
+            String(location.id) ===
+            String(assessment.previous_location_id)
+    );
+
+    const currentLocation = locationHistory.find(
+        location =>
+            String(location.id) ===
+            String(assessment.current_location_id)
+    );
+
+    // Use the saved assessment risk, not the latest risk response.
+    const risk = String(
+        assessment.risk_level || "UNKNOWN"
+    ).toUpperCase();
+
+    if (movementRisk) {
+        movementRisk.textContent = risk;
+
+        if (risk === "HIGH") {
+            movementRisk.style.color = "#ff5d70";
+        } else if (risk === "MEDIUM") {
+            movementRisk.style.color = "#f0b85a";
+        } else {
+            movementRisk.style.color = "#39d5a2";
+        }
+    }
+
+    const score = Number(assessment.risk_score);
+    const scoreText = Number.isFinite(score)
+        ? `${score}/100`
+        : "Unavailable";
+
+    if (movementIntro) {
+        movementIntro.textContent =
+            `Assessment #${assessment.id}: location ` +
+            `${assessment.previous_location_id} → ` +
+            `${assessment.current_location_id}. ` +
+            `Risk: ${risk}. Score: ${scoreText}.`;
+    }
+
+    // Calculate historical movement using the two saved locations.
+    let distance = NaN;
+    let elapsedSeconds = NaN;
+    let speed = NaN;
+
+    if (previousLocation && currentLocation) {
+
+        const lat1 = Number(previousLocation.latitude);
+        const lon1 = Number(previousLocation.longitude);
+        const lat2 = Number(currentLocation.latitude);
+        const lon2 = Number(currentLocation.longitude);
+
+        const coordinatesValid = [
+            lat1, lon1, lat2, lon2
+        ].every(Number.isFinite);
+
+        if (coordinatesValid) {
+
+            const radians = degrees => degrees * Math.PI / 180;
+
+            const latitudeDifference = radians(lat2 - lat1);
+            const longitudeDifference = radians(lon2 - lon1);
+
+            const a =
+                Math.sin(latitudeDifference / 2) ** 2 +
+                Math.cos(radians(lat1)) *
+                Math.cos(radians(lat2)) *
+                Math.sin(longitudeDifference / 2) ** 2;
+
+            const safeA = Math.max(0, Math.min(1, a));
+
+            distance = 6371 * 2 * Math.atan2(
+                Math.sqrt(safeA),
+                Math.sqrt(1 - safeA)
+            );
+        }
+
+        const previousTime = Date.parse(previousLocation.timestamp);
+        const currentTime = Date.parse(currentLocation.timestamp);
+
+        if (
+            Number.isFinite(previousTime) &&
+            Number.isFinite(currentTime) &&
+            currentTime > previousTime
+        ) {
+            elapsedSeconds = (currentTime - previousTime) / 1000;
+        }
+
+        if (
+            Number.isFinite(distance) &&
+            Number.isFinite(elapsedSeconds) &&
+            elapsedSeconds > 0
+        ) {
+            speed = distance / (elapsedSeconds / 3600);
+        }
+    }
+
+    if (movementDistance) {
+        movementDistance.textContent = Number.isFinite(distance)
+            ? `${distance.toFixed(1)} km`
+            : "—";
+    }
+
+    if (movementTime) {
+        movementTime.textContent = Number.isFinite(elapsedSeconds)
+            ? formatDuration(elapsedSeconds)
+            : "—";
+    }
+
+    if (movementSpeed) {
+        movementSpeed.textContent = Number.isFinite(speed)
+            ? `${speed.toFixed(2)} km/h`
+            : "—";
+    }
+
+    if (movementReason) {
+        const recommendation =
+            assessment.recommended_action ||
+            "Review this historical risk assessment.";
+
+        movementReason.textContent =
+            `${recommendation}. ` +
+            "Distance, elapsed time, and speed are calculated " +
+            "from the recorded location coordinates and timestamps.";
+    }
+}
+
+
+// ==========================================
 // NAVIGATE TO AN ASSESSMENT'S LOCATIONS
 // ==========================================
 
@@ -1219,6 +1359,9 @@ function focusAssessment(assessmentId) {
     if (!assessment || !geoMap) {
         return;
     }
+
+    // Keep the movement panel synchronized with this assessment.
+    updateSelectedAssessmentMovement(assessment);
 
     const previousId = String(assessment.previous_location_id);
     const currentId = String(assessment.current_location_id);
@@ -1317,30 +1460,24 @@ function focusAssessment(assessmentId) {
 // CONNECT ALERTS AND ASSESSMENT ROWS
 // ==========================================
 
-function handleAssessmentSelection(event) {
-
-    const item = event.target.closest(
-        "[data-assessment-id]"
-    );
+// Use one delegated click handler so dynamically rendered
+// assessment rows and alert cards remain selectable.
+document.addEventListener("click", function (event) {
+    const item = event.target.closest("[data-assessment-id]");
 
     if (!item) {
         return;
     }
 
-    focusAssessment(
+    event.preventDefault();
+
+    console.log(
+        "Clicked assessment:",
         item.dataset.assessmentId
     );
-}
 
-alertsContainer.addEventListener(
-    "click",
-    handleAssessmentSelection
-);
-
-assessmentsTable.addEventListener(
-    "click",
-    handleAssessmentSelection
-);
+    focusAssessment(item.dataset.assessmentId);
+});
 
 function handleAssessmentKeyboard(event) {
 
